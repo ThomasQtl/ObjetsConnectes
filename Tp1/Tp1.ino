@@ -1,71 +1,56 @@
+/*
+  Lora Send And Receive
+  This sketch demonstrates how to send and receive data with the MKR WAN 1300/1310 LoRa module.
+  This example code is in the public domain.
+*/
+
+#include <MKRWAN.h>
 #include "Wire.h"
 #include "SHT31.h"
-#include <Arduino.h>
-#include "disk91_LoRaE5.h"
-
-Disk91_LoRaE5 lorae5(false);
-
 #define SHT31_ADDRESS   0x44
 
 SHT31 sht;
 uint16_t status;
 
-uint8_t deveui[] = {0x4A, 0x23, 0x26, 0x94, 0x13, 0x65, 0x82, 0x6C};
-uint8_t appeui[] = {0x07, 0xC6, 0x71, 0xC1, 0x7A, 0xD7, 0x15, 0xD5};
-uint8_t appkey[] = {0x32, 0xA4, 0x32, 0x46, 0xF0, 0x52, 0x05, 0x83, 0xDA, 0xBA, 0xCA, 0xAA, 0xA8, 0x2F, 0xAC, 0x1A};
+LoRaModem modem;
 
-void setup()
-{
-  Serial.begin(9600);
-  uint32_t start = millis();
-  while ( !Serial && (millis() - start) < 1500 );  // Open the Serial Monitor to get started or wait for 1.5"
+// Uncomment if using the Murata chip as a module
+// LoRaModem modem(Serial1);
 
-  // init the library, search the LORAE5 over the different WIO port available
-  if ( ! lorae5.begin(DSKLORAE5_SEARCH_WIO) ) {
-    Serial.println("LoRa E5 Init Failed");
-    while(1); 
+// Please enter your sensitive data in the Secret tab or arduino_secrets.h
+String appEui = "07C671C17AD715D5";
+String appKey = "32A43246F0520583DABACAAAA82FAC1A";
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(115200);
+  while (!Serial);
+  // change this to your regional band (eg. US915, AS923, ...)
+  if (!modem.begin(EU868)) {
+    Serial.println("Failed to start module");
+    while (1) {}
+  };
+  Serial.print("Your module version is: ");
+  Serial.println(modem.version());
+  Serial.print("Your device EUI is: ");
+  Serial.println(modem.deviceEUI());
+
+  int connected = modem.joinOTAA(appEui, appKey);
+  if (!connected) {
+    Serial.println("Something went wrong; are you indoor? Move near a window and retry");
+    while (1) {}
   }
 
-  // Setup the LoRaWan Credentials
-  if ( ! lorae5.setup(
-          DSKLORAE5_ZONE_EU868,     // LoRaWan Radio Zone EU868 here
-          deveui,
-          appeui,
-          appkey
-       ) ){
-    Serial.println("LoRa E5 Setup Failed");
-    while(1);         
-  }
-}
+  Serial.println("Connected !");
+  // Set poll interval to 60 secs.
+  modem.minPollInterval(60);
+  // NOTE: independent of this setting, the modem will
+  // not allow sending more than one message every 2 minutes,
+  // this is enforced by firmware and can not be changed.
 
-void loop() {
-  static uint8_t data[] = { 0x01, 0x02, 0x03, 0x04 }; 
+  
+  Serial.println("Setup Capteur");
 
-  // Send an uplink message. The Join is automatically performed
-  if ( lorae5.send_sync(
-        1,              // LoRaWan Port
-        data,           // data array
-        sizeof(data),   // size of the data
-        false,          // we are not expecting a ack
-        7,              // Spread Factor
-        14              // Tx Power in dBm
-       ) 
-  ) {
-      Serial.println("Uplink done");
-      if ( lorae5.isDownlinkReceived() ) {
-        Serial.println("A downlink has been received");
-        if ( lorae5.isDownlinkPending() ) {
-          Serial.println("More downlink are pending");
-        }
-      }
-  }
-  delay(30000);
-    
-}
-
-/*
-void setup()
-{
   Serial.begin(115200);
   Serial.println(__FILE__);
   Serial.print("SHT31_LIB_VERSION: \t");
@@ -82,26 +67,41 @@ void setup()
 
   sht.heatOn();
 
-  while (sht.isHeaterOn())
-  {
-    status = sht.readStatus();
-    printHeaterStatus(status);
-    sht.read();
-    Serial.print("Temperature :");
-    Serial.println(sht.getTemperature());
-    delay(1000);
+
+  Serial.println("End Setup !");
+}
+
+void loop() {
+  /*
+  status = sht.readStatus();
+  printHeaterStatus(status);
+  */
+
+  int8_t datas[10];
+  for (int i=0; i<10; i++)
+   {
+      sht.read();
+      datas[i] = (int8_t)sht.getTemperature();
+      delay(3000);
+   }
+
+  int err;
+  modem.beginPacket();
+  modem.write((uint8_t*)datas, 10);
+  err = modem.endPacket(true);
+  if (err > 0) {
+    Serial.println("Message sent correctly!");
+  } else {
+    Serial.println("Error sending message :(");
+    Serial.println("(you may send a limited amount of messages per minute, depending on the signal strength");
+    Serial.println("it may vary from 1 message every couple of seconds to 1 message every minute)");
   }
-
-  Serial.println("switched off");
+  delay(1000);
+  if (!modem.available()) {
+    Serial.println("No downlink message received at this time.");
+    return;
+  }
 }
-
-
-void loop()
-{
-  // forced switch off
-  if (status & SHT31_STATUS_HEATER_ON) sht.heatOff();
-}
-
 
 void printHeaterStatus(uint16_t status)
 {
@@ -114,4 +114,3 @@ void printHeaterStatus(uint16_t status)
     Serial.println("OFF");
   }
 }
-*/
