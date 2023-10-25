@@ -181,7 +181,6 @@ typedef const char* ConstStr;
 #define GFP(x) x
 #define GF(x)  x
 
-#define LORA_DEBUG Serial
 #ifdef LORA_DEBUG
 namespace {
   template<typename T>
@@ -1091,7 +1090,7 @@ public :
       YIELD();
       while (stream.available() > 0) {
         int a = streamRead();
-        Serial.println((char)a);
+        DBG((char)a);
         if (a < 0) continue;
         data += (char)a;
         if (r1 && data.endsWith(r1)) {

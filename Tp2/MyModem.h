@@ -4,19 +4,32 @@
 class MyModem : public LoRaModem
 {
 public:
-  String readAt(int addr)
+  uint8_t readAt(int addr)
   {
-    String value = "y a rien";
-    sendAT("$NVM",addr);
-    Serial.println(waitResponse());
-    if (waitResponse("+OK=") == 1) {
-        value = stream.readStringUntil('\r');
+    String value = "";
+    sendAT("$NVM "+ String(addr));
+    if (waitResponse() == 1) {
+      value = stream.readStringUntil('\n');
     }
-    return value;
+    return value.substring(1).toInt();
   }
 
-  void writeAt(int addr, String value)
+  void writeAt(int addr, int value)
   {
-    sendAT("$NVM",addr, value);
+    String mess = String(addr) + "," + String(value);
+    sendAT("$NVM "+mess);
+    waitResponse();
+  }
+
+  void writeAt(String mess)
+  {
+    sendAT("$NVM "+mess);
+    waitResponse();
+  }
+
+  void lockKey()
+  {
+    sendAT("$APKACCESS");
+    waitResponse();
   }
 };
